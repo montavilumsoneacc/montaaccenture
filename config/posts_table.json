@@ -1,0 +1,57 @@
+{
+  "TableName": "posts",
+  "KeySchema": [{ "AttributeName": "postId", "KeyType": "HASH" }],
+  "AttributeDefinitions": [
+    { "AttributeName": "postId", "AttributeType": "S" },
+    { "AttributeName": "userId", "AttributeType": "S" },
+    { "AttributeName": "createdOn", "AttributeType": "S" },
+    { "AttributeName": "title", "AttributeType": "S" },
+    { "AttributeName": "content", "AttributeType": "S" }
+  ],
+  "ProvisionedThroughput": {
+    "ReadCapacityUnits": 5,
+    "WriteCapacityUnits": 5
+  },
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "userIdIndex",
+      "KeySchema": [
+        {
+          "AttributeName": "userId",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "createdOn",
+          "KeyType": "RANGE"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      },
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 5,
+        "WriteCapacityUnits": 5
+      }
+    },
+    {
+      "IndexName": "titleIndex",
+      "KeySchema": [
+        {
+          "AttributeName": "title",
+          "KeyType": "HASH"
+        },
+        {
+          "AttributeName": "content",
+          "KeyType": "RANGE"
+        }
+      ],
+      "Projection": {
+        "ProjectionType": "ALL"
+      },
+      "ProvisionedThroughput": {
+        "ReadCapacityUnits": 5,
+        "WriteCapacityUnits": 5
+      }
+    }
+  ]
+}

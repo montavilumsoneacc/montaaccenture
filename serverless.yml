@@ -1,0 +1,197 @@
+plugins:
+  - serverless-plugin-typescript
+  - serverless-dynamodb-local
+  - serverless-s3-local
+  - serverless-offline
+app: sls-test
+service: sls-test
+useDotenv: true
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'local'}
+  region: ${env:REGION}
+  memorySize: 256
+  iam:
+    role:
+      statements: # permissions for all of your functions can be set here
+        - Effect: Allow
+          Action: # Gives permission to DynamoDB tables in a specific region
+            - dynamodb:DescribeTable
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: 'arn:aws:dynamodb:eu-central-1:*:*'
+  environment:
+    DYNAMO_ENDPOINT: ${env:DYNAMO_ENDPOINT}
+    REGION: ${env:REGION}
+
+custom:
+  serverless-offline:
+    httpPort: 4000
+    lambdaPort: 4002
+  dynamodb:
+    stages:
+      - ${self:provider.stage}
+    start:
+      docker: true
+      port: 8010:8000
+      inMemory: false
+      migrate: true
+      convertEmptyValues: false
+      noStart: false
+      dockerImage: amazon/dynamodb
+  s3:
+    host: localhost
+    directory: ./s3-buckets
+
+functions:
+  - hello-world:
+      handler: handlers/hello/hello.handler
+      description: 'offline example'
+      events:
+        - httpApi:
+            path: /${self:provider.stage}/hello
+            method: GET
+  - createUser:
+      handler: handlers/users/createUser.handler
+      events:
+        - httpApi:
+            path: /${self:provider.stage}/users/create
+            method: PUT
+      environment:
+        TABLE_NAME_USERS: ${env:TABLE_NAME_USERS}
+  - queryUsers:
+      handler: handlers/users/queryUsers.handler
+      events:
+        - httpApi:
+            path: /${self:provider.stage}/users/get
+            method: GET
+      environment:
+        TABLE_NAME_USERS: ${env:TABLE_NAME_USERS}
+  - importUsers:
+      handler: handlers/users/importUsers.handler
+      events:
+        - httpApi:
+            path: /${self:provider.stage}/users/import
+            method: POST
+      environment:
+        TABLE_NAME_USERS: ${env:TABLE_NAME_USERS}
+  - upload:
+      handler: handlers/s3/upload.handler
+      events:
+        - httpApi:
+            path: /${self:provider.stage}/upload/{fileName}
+            method: POST
+      environment:
+        BUCKET_NAME: ${self:resources.Resources.localBucket.Properties.BucketName}
+  - createPost:
+      handler: handlers/posts/createPost.handler
+      events:
+        - httpApi:
+            path: /${self:provider.stage}/posts/create
+            method: PUT
+      environment:
+        TABLE_NAME_POSTS: ${env:TABLE_NAME_POSTS}
+  - s3hook:
+      handler: handlers/s3/s3hook.handler
+      events:
+        - s3:
+            bucket: local-bucket
+            event: s3:ObjectCreated:*
+      environment:
+        TABLE_NAME_USERS: ${env:TABLE_NAME_USERS}
+
+resources:
+  Resources:
+    usersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: users
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: isActive
+            AttributeType: N
+          - AttributeName: firstName
+            AttributeType: S
+          - AttributeName: userName
+            AttributeType: S
+        ProvisionedThroughput:
+          ReadCapacityUnits: 3
+          WriteCapacityUnits: 3
+        GlobalSecondaryIndexes:
+          - IndexName: isActiveIndex
+            KeySchema:
+              - AttributeName: isActive
+                KeyType: HASH
+              - AttributeName: firstName
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 3
+              WriteCapacityUnits: 3
+          - IndexName: userNameIndex
+            KeySchema:
+              - AttributeName: userName
+                KeyType: HASH
+              - AttributeName: firstName
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 3
+              WriteCapacityUnits: 3
+    postsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: posts
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        AttributeDefinitions:
+          - AttributeName: createdOn
+            AttributeType: S
+          - AttributeName: title
+            AttributeType: S
+          - AttributeName: content
+            AttributeType: S
+        ProvisionedThroughput:
+          ReadCapacityUnits: 3
+          WriteCapacityUnits: 3
+        GlobalSecondaryIndexes:
+          - IndexName: userIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+              - AttributeName: createdOn
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 3
+              WriteCapacityUnits: 3
+          - IndexName: titleIndex
+            KeySchema:
+              - AttributeName: title
+                KeyType: HASH
+              - AttributeName: content
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 3
+              WriteCapacityUnits: 3
+    localBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: local-bucket

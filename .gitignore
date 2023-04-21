@@ -1,0 +1,12 @@
+node_modules
+
+# Serverless
+.serverless
+.build
+
+# .env files
+.env
+.env.*
+
+# S3 bucket folder
+s3-buckets
